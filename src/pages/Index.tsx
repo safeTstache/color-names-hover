@@ -12,7 +12,9 @@ const Index = () => {
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.altKey && e.key.toLowerCase() === 'c') {
+      // Check for fn+control+shift+c (on macOS)
+      // Note: 'e.metaKey' would represent the Command key, but we're using Control instead
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'c') {
         try {
           setIsTooltipVisible(true);
           const color = await getColorAtPoint(mousePos.x, mousePos.y);
@@ -28,7 +30,8 @@ const Index = () => {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Alt') {
+      // Hide tooltip when any of the modifier keys are released
+      if (e.key === 'Control' || e.key === 'Shift') {
         setIsTooltipVisible(false);
       }
     };
@@ -62,8 +65,9 @@ const Index = () => {
       <div className="text-center space-y-6">
         <h1 className="text-4xl font-bold text-gray-900">Color Picker</h1>
         <p className="text-lg text-gray-600">
-          Press <kbd className="px-2 py-1 bg-gray-100 rounded-md">Alt + C</kbd> to identify the color under your cursor
+          Press <kbd className="px-2 py-1 bg-gray-100 rounded-md">Control + Shift + C</kbd> to identify the color under your cursor
         </p>
+        <p className="text-sm text-gray-500">(For macOS)</p>
       </div>
       <ColorTooltip
         x={mousePos.x}
