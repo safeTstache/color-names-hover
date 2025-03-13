@@ -2,7 +2,6 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
-const robot = require('robotjs');
 
 let mainWindow;
 let tray = null;
@@ -32,22 +31,18 @@ function createWindow() {
 
   // Register the global shortcut for Control+Shift+C
   globalShortcut.register('CommandOrControl+Shift+C', () => {
-    // Get mouse position
-    const mouse = robot.getMousePos();
-    
-    // Get pixel color at mouse position
-    const pixelColor = robot.getPixelColor(mouse.x, mouse.y);
-    
-    // Convert the hex string to RGB values
-    const r = parseInt(pixelColor.substring(0, 2), 16);
-    const g = parseInt(pixelColor.substring(2, 4), 16);
-    const b = parseInt(pixelColor.substring(4, 6), 16);
-    
-    // Send the color data to the renderer process
+    // When shortcut is pressed, show app and tell it to prepare for color selection
     if (mainWindow) {
-      mainWindow.webContents.send('color-picked', { r, g, b, x: mouse.x, y: mouse.y });
+      mainWindow.webContents.send('prepare-color-pick');
       mainWindow.show();
       mainWindow.focus();
+    }
+  });
+
+  // Listen for messages from the renderer process
+  ipcMain.on('minimize-app', () => {
+    if (mainWindow) {
+      mainWindow.hide();
     }
   });
 
