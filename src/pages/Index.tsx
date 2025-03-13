@@ -4,52 +4,82 @@ import { findClosestColor } from "../utils/colorNames";
 import ColorTooltip from "../components/ColorTooltip";
 import { useToast } from "@/components/ui/use-toast";
 
+declare global {
+  interface Window {
+    require: any;
+  }
+}
+
 const Index = () => {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [colors, setColors] = useState<[string, string]>(["", ""]);
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const { toast } = useToast();
+  const [isElectron, setIsElectron] = useState(false);
 
   useEffect(() => {
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      // Check for fn+control+shift+c (on macOS)
-      // Note: 'e.metaKey' would represent the Command key, but we're using Control instead
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'c') {
-        try {
-          setIsTooltipVisible(true);
-          const color = await getColorAtPoint(mousePos.x, mousePos.y);
-          setColors(color);
-        } catch (error) {
-          toast({
-            title: "Error",
-            description: "Could not get the color at pointer position",
-            variant: "destructive",
-          });
+    // Check if running in Electron
+    setIsElectron(window.navigator.userAgent.toLowerCase().indexOf(' electron/') > -1);
+    
+    // Setup Electron IPC listener if we're in Electron
+    if (isElectron) {
+      const { ipcRenderer } = window.require('electron');
+      
+      ipcRenderer.on('color-picked', (event, { r, g, b, x, y }) => {
+        setMousePos({ x, y });
+        setIsTooltipVisible(true);
+        const colorInfo = findClosestColor(r, g, b);
+        setColors(colorInfo);
+        
+        // Hide tooltip after 3 seconds
+        setTimeout(() => {
+          setIsTooltipVisible(false);
+        }, 3000);
+      });
+      
+      // Cleanup listener
+      return () => {
+        ipcRenderer.removeAllListeners('color-picked');
+      };
+    } else {
+      // Web version fallback - only works within the browser window
+      const handleKeyDown = async (e: KeyboardEvent) => {
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'c') {
+          try {
+            setIsTooltipVisible(true);
+            const color = await getColorAtPoint(mousePos.x, mousePos.y);
+            setColors(color);
+          } catch (error) {
+            toast({
+              title: "Error",
+              description: "Could not get the color at pointer position",
+              variant: "destructive",
+            });
+          }
         }
-      }
-    };
+      };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      // Hide tooltip when any of the modifier keys are released
-      if (e.key === 'Control' || e.key === 'Shift') {
-        setIsTooltipVisible(false);
-      }
-    };
+      const handleKeyUp = (e: KeyboardEvent) => {
+        if (e.key === 'Control' || e.key === 'Shift') {
+          setIsTooltipVisible(false);
+        }
+      };
 
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
-    };
+      const handleMouseMove = (e: MouseEvent) => {
+        setMousePos({ x: e.clientX, y: e.clientY });
+      };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keyup', handleKeyUp);
+      window.addEventListener('mousemove', handleMouseMove);
 
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, [mousePos]);
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+        window.removeEventListener('mousemove', handleMouseMove);
+      };
+    }
+  }, [mousePos, isElectron]);
 
   const getColorAtPoint = async (x: number, y: number): Promise<[string, string]> => {
     // For this demo version, we'll return a random color
@@ -67,7 +97,11 @@ const Index = () => {
         <p className="text-lg text-gray-600">
           Press <kbd className="px-2 py-1 bg-gray-100 rounded-md">Control + Shift + C</kbd> to identify the color under your cursor
         </p>
-        <p className="text-sm text-gray-500">(For macOS)</p>
+        <p className="text-sm text-gray-500">
+          {isElectron 
+            ? "Works system-wide! Press the shortcut anywhere on your screen." 
+            : "(Only works in this browser window)"}
+        </p>
       </div>
       <ColorTooltip
         x={mousePos.x}
